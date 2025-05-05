@@ -1,12 +1,12 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const { MONGO_URI } = require("./config");
+import express from "express";
+import mongoose from "mongoose";
+import MONGO_URI from "./config.js";
 const PORT = process.env.PORT || 3000;
+import authRoutes from './routes/authRoutes.js'
 
 const app = express();
 app.use(express.json());
 
-const authRoutes = require("./routes/authRoutes");
 app.use("/", authRoutes);
 
 // Connect MongoDB

@@ -2,6 +2,7 @@
   "name": "auth-sytem-nodejs",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "nodemon --env-file=.env index.js"
   },

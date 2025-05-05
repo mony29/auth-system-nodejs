@@ -1,10 +1,9 @@
-const User = require("../models/User")
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const { ACCESS_SECRET, REFRESH_SECRET } = require("../constants");
+import User from "../models/User.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { ACCESS_SECRET, REFRESH_SECRET } from "../constants.js";
 
-
-exports.register = async (req, res) => {
+export const register = async (req, res) => {
   const { username, email, password } = req.body;
 
   if (!username || !email || !password)
@@ -17,25 +16,24 @@ exports.register = async (req, res) => {
   const hashedPassword = await bcrypt.hash(password, 10);
   const user = new User({ username, email, password: hashedPassword });
 
-  console.log(`user: ${user}`);
+ //// console.log(`user: ${user}`);
 
   await user.save();
 
-  console.log(`user: ${user}`);
+ //// console.log(`user: ${user}`);
 
   res.json({ msg: "User registered successfully." });
 };
 
-
-exports.login = async (req, res) => {
+export const login = async (req, res) => {
   const { identifier, password } = req.body;
-  // console.log("req.body", req.body);
+  ////// console.log("req.body", req.body);
 
   const user = await User.findOne({
     $or: [{ email: identifier }, { username: identifier }],
   });
 
-  // console.log("User from DB:", user); // Log the entire user object
+  ////// console.log("User from DB:", user); // Log the entire user object
 
   if (!user) return res.status(400).json({ msg: "User not found" });
 
@@ -54,16 +52,15 @@ exports.login = async (req, res) => {
   );
 
   user.refreshTokens.push(refreshToken);
-  console.log("###1 saving...");
+  ////// console.log("###1 saving...");
   // await user.save(); // This line fails
   await user.save({ validateBeforeSave: false }); // skip validation
-  console.log("###2 success");
+  ////// console.log("###2 success");
 
   res.json({ accessToken, refreshToken });
 };
 
-
-exports.getProfile = async (req, res) => {
+export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
     res.json(user);
@@ -72,24 +69,53 @@ exports.getProfile = async (req, res) => {
   }
 };
 
-exports.refreshToken = async (req, res) => {
+export const refreshToken = async (req, res) => {
   const { refreshToken } = req.body;
 
+ //// console.log("### 1 :", refreshToken);
+
   if (!refreshToken) return res.status(401).json({ msg: "Token required" });
-  if (!refreshTokens.includes(refreshToken))
-    return res.status(403).json({ msg: "Invalid refresh token" });
 
   try {
-    const user = jwt.verify(refreshToken, REFRESH_SECRET);
+    // Find the user with the provided refresh token
+    const user = await User.findOne({ refreshTokens: refreshToken });
+    if (!user) return res.status(403).json({ msg: "Invalid refresh token" });
+    ////// console.log("###2 :", user.refreshTokens);
+   //// console.log("### 2");
 
+    // verify the refresh token
+    const decoded = jwt.verify(refreshToken, REFRESH_SECRET);
+   //// console.log("### 3");
+
+    // generate new access token
     const newAccessToken = jwt.sign(
-      { id: user._id, username: user.username },
+      { id: decoded.id, username: decoded.username },
       ACCESS_SECRET,
       { expiresIn: "15m" }
     );
+   //// console.log("### 4");
 
-    res.json({ accessToken: newAccessToken });
+    // Optionally, remove the used refresh token and add a new one
+    user.refreshTokens = user.refreshTokens.filter(
+      (token) => token !== refreshToken
+    );
+   //// console.log("### 5");
+
+    const newRefreshToken = jwt.sign(
+      { id: user._id, username: user.username },
+      REFRESH_SECRET
+    );
+   //// console.log("### 6");
+
+    user.refreshTokens.push(newRefreshToken);
+   //// console.log("### 7");
+
+    // await user.save();
+    await user.save({ validateBeforeSave: false });
+   //// console.log("### 8");
+    res.json({ accessToken: newAccessToken, refreshToken: newRefreshToken });
   } catch (error) {
+    console.error(error);
     return res.status(403).json({ msg: "Token expired or invalid" });
   }
 };
