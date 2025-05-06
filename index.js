@@ -1,8 +1,9 @@
 import express from "express";
 import mongoose from "mongoose";
-import MONGO_URI from "./config.js";
 const PORT = process.env.PORT || 3000;
-import authRoutes from './routes/authRoutes.js'
+const MONGO_URI =
+  process.env.MONGO_URI || "mongodb://localhost:27017/auth_demo";
+import authRoutes from "./routes/authRoutes.js";
 
 const app = express();
 app.use(express.json());

@@ -13,7 +13,12 @@ import {
   pwdIncorrect,
   emailRegex,
   emailInvalid,
+  allFieldsRequired,
+  verifyCodeIsSent,
+  invalidOrExpiredCode,
 } from "../config.js";
+import { sendVerificationEmail } from "../utils/mailer.js";
+import VerificationCode from "../models/VerificationCode.js";
 
 export const register = async (req, res) => {
   const { username, email, password } = req.body;
@@ -167,5 +172,62 @@ export const refreshToken = async (req, res) => {
   } catch (error) {
     //error(error);
     return res.status(403).json({ msg: "Token expired or invalid" });
+  }
+};
+
+// send verification code
+export const sendCode = async (req, res) => {
+  // // console.log("## req.body", req.body);
+
+  const { username, email, password } = req.body;
+  if (!email || !username || !password)
+    return res.status(400).json({ msg: allFieldsRequired });
+
+  const existingUser = await User.findOne({ email });
+  if (existingUser) return res.status(400).json({ msg: userAlreadyExists });
+
+  /** Random 6-digit number, 100000~999999 */
+  const code = Math.floor(10000 + Math.random() * 900000).toString();
+  // console.log("## code:", code);
+
+  /** UpdateOrInsert verify code */
+  await VerificationCode.findOneAndUpdate(
+    { email },
+    { code, expAt: new Date(Date.now() + 10 * 60 + 1000) },
+    { upsert: true } // Update or Insert
+  );
+
+  await sendVerificationEmail(email, code);
+  res.json({ msg: verifyCodeIsSent });
+};
+
+// verify code and register
+export const verifyCodeAndRegister = async (req, res) => {
+  try {
+    const { username, email, password, code } = req.body;
+    // console.log("## req.body", req.body);
+
+    const record = await VerificationCode.findOne({ email, code });
+    // console.log("## record:", record);
+
+    if (!record)
+      // if (!record || !record.expAt < new Date())
+      return res.status(400).json({ msg: invalidOrExpiredCode });
+
+    // console.log("## 1");
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // console.log("## 1.1");
+
+    await User.create({ email, username, password: hashedPassword });
+    // console.log("## 2");
+
+    await VerificationCode.deleteOne({ email }); // clean up
+    // console.log("## 3");
+
+    res.json({ msg: registerSuccess });
+  } catch (error) {
+    console.error("## Error in verifyAndRegister:", error);
+    res.status(500).json({ msg: "Server error" });
   }
 };

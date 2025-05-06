@@ -1,3 +1,8 @@
 ## How to use Refresh-Token
 - Login with username & password to get token and refresh token
 - Pass the refresh token to get new token
+
+## Register
+- POST: /register/send-code (email, username, password)
+- Send mail code
+- POST: /register/verify-code (email, username, password, code)
